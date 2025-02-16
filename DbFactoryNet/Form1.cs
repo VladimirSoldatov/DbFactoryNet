@@ -4,6 +4,7 @@ using System.Data.Common;
 using System.Windows.Forms;
 using System.Configuration;
 using Microsoft.Win32.SafeHandles;
+using System.Data.SqlClient;
 
 namespace DbFactoryNet
 {
@@ -64,14 +65,27 @@ namespace DbFactoryNet
             // создаем адаптер из фабрики
             DbDataAdapter adapter = dbProviderFactory.CreateDataAdapter();
             adapter.SelectCommand = dbConnection.CreateCommand();
-            adapter.SelectCommand.CommandText = textBox2.
-            Text.ToString();
+            adapter.SelectCommand.CommandText = textBox2.Text.ToString();
             // выполняем запрос select из адаптера
-            DataTable table = new DataTable();
-            adapter.Fill(table);
+            DataSet dataSet = new DataSet();
+            adapter.Fill(dataSet, "Authors");
             // выводим результаты запроса
-            dataGridView1.DataSource = null;
-            dataGridView1.DataSource = table;
+
+            DataViewManager dvm = new DataViewManager(dataSet);
+            dvm.DataViewSettings["Authors"].Sort = "FirstName ASC";
+            DataView dataView = dvm.CreateDataView(dataSet.Tables["Authors"]);
+            dataGridView1.DataSource = dataView;
+
+            dvm = new DataViewManager(dataSet);
+            dvm.DataViewSettings["Authors"].RowFilter = "FirstName = 'Сергей'";          
+            dataView = dvm.CreateDataView(dataSet.Tables["Authors"]);
+
+            dataGridView2.DataSource = null;
+            dataGridView2.DataSource = dataView;
+            dataGridView2.AllowUserToAddRows = false;
+
+
+
         }
 
         private void button2_TextChanged(object sender, EventArgs e)
@@ -81,7 +95,40 @@ namespace DbFactoryNet
 
         private void textBox2_TextChanged(object sender, EventArgs e)
         {
-            button2.Enabled = true;
+
+            if (textBox2.Text.Length > 5)
+                button2.Enabled = true;
+            else
+                button2.Enabled = false;
+        }
+
+        private void button3_Click(object sender, EventArgs e)
+        {
+            dbConnection.ConnectionString = textBox1.Text;
+            DbTransaction dbTransaction = null;
+
+            try
+            {
+                dbConnection.Open();
+                // создаем адаптер из фабрики
+                DbCommand dbCommand = dbConnection.CreateCommand();
+                dbTransaction = dbConnection.BeginTransaction();
+                dbCommand.Transaction = dbTransaction;
+                dbCommand.CommandText = textBox2.Text;
+                dbCommand.ExecuteNonQuery();
+                dbCommand.CommandText = "INSERT INTO Authors(id, FirstName, LastName) VALUES (7,'Кошкин', 'Дом')";
+                dbCommand.ExecuteNonQuery();
+                dbTransaction.Commit();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("!!!");
+                dbTransaction.Rollback();
+            }
+            finally
+            {
+                dbConnection.Close();
+            }
         }
     }
 }
